@@ -1,13 +1,6 @@
 #ifndef PARSER_H
 #define PARSER_H
-
-typedef struct {
-    char label[10];
-    char opcode[10];
-    char operand[20];
-    int lc;
-    int size;
-} ParsedLine;
+#include "structures.h"
 
 // Bir satırı parse eder
 //  1  -> başarılı
@@ -15,7 +8,7 @@ typedef struct {
 // -1  -> hata
 int parseLine(char *line, ParsedLine *out);
 
-// Opcode'a göre instruction size döndürür
-int getInstructionSize(const char *opcode);
+// Opcode ve operand'a göre instruction size döndürür
+int getInstructionSize(const char *opcode, const char *operand);
 
 #endif
