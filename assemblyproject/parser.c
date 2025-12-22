@@ -1,0 +1,76 @@
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+#include "parser.h"
+
+typedef struct {
+    char opcode[10];
+    int size;
+} OpcodeInfo;
+
+// SMPL opcode tablosu
+OpcodeInfo opcodeTable[] = {
+    {"ADD", 3}, {"SUB", 3}, {"LDA", 3}, {"STA", 3},
+    {"CLL", 3}, {"JMP", 3}, {"BEQ", 3}, {"BGT", 3}, {"BLT", 3},
+    {"INC", 1}, {"DEC", 1}, {"RET", 1}, {"HLT", 1},
+    {"BYTE", 1},
+    {"START", 0}, {"END", 0}, {"EXTREF", 0}, {"ENTRY", 0}
+};
+
+int opcodeCount = sizeof(opcodeTable) / sizeof(OpcodeInfo);
+
+int getInstructionSize(const char *opcode) {
+    for (int i = 0; i < opcodeCount; i++) {
+        if (strcmp(opcode, opcodeTable[i].opcode) == 0)
+            return opcodeTable[i].size;
+    }
+    return -1;
+}
+
+int parseLine(char *line, ParsedLine *out) {
+    char temp[100];
+    strcpy(temp, line);
+
+    // Default değerler
+    out->label[0] = '\0';
+    out->opcode[0] = '\0';
+    out->operand[0] = '\0';
+
+    char *token;
+    char *rest = temp;
+
+    // İlk token
+    token = strtok_r(rest, " \t\n", &rest);
+    if (!token) return 0; // boş satır
+
+    // Label kontrolü
+    if (strchr(token, ':')) {
+        token[strlen(token) - 1] = '\0'; // ':' sil
+        strcpy(out->label, token);
+
+        token = strtok_r(NULL, " \t\n", &rest);
+        if (!token) {
+            printf("HATA: Opcode eksik\n");
+            return -1;
+        }
+    }
+
+    // Opcode
+    strcpy(out->opcode, token);
+
+    // Operand (varsa)
+    token = strtok_r(NULL, "\n", &rest);
+    if (token) {
+        while (*token == ' ' || *token == '\t') token++;
+        strcpy(out->operand, token);
+    }
+
+    // Instruction size
+    out->size = getInstructionSize(out->opcode);
+    if (out->size == -1) {
+        printf("HATA: Bilinmeyen opcode -> %s\n", out->opcode);
+        return -1;
+    }
+
+    return 1;
+}
