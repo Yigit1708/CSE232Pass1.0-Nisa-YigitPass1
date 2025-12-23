@@ -1,0 +1,14 @@
+# build outputs
+*.exe
+*.obj
+
+# common build folders
+Debug/
+Release/
+x64/
+
+# optional: linker outputs (if you generate them)
+exp.exe
+exp.t
+a.exe
+a.t
