@@ -15,7 +15,7 @@ typedef struct {
 // -1  -> hata
 int parseLine(char *line, ParsedLine *out);
 
-// Opcode'a göre instruction size döndürür
-int getInstructionSize(const char *opcode);
+// Opcode ve operand'a göre instruction size döndürür
+int getInstructionSize(const char *opcode, const char *operand);
 
 #endif
