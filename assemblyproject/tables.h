@@ -24,16 +24,24 @@ struct HDRMTable {
     int address;
 };
 
+struct Memory {
+    int address;
+    char symbol[11]; // integers must be converted to string Ex: 132 ->"01" and "32"
+};
+
 // Global tablolar (dokümandaki boyutlarda)
 #define MAX_ST 10
 #define MAX_FRT 20
 #define MAX_DAT 30
 #define MAX_HDRM 20
+#define MEMORY_SIZE 500  // Loader için memory array boyutu
+#define MAX_OPCODE_LEN 10  // Opcode maksimum uzunluğu
 
 extern struct SymbolTable ST[MAX_ST];
 extern struct ForwardRefTable FRT[MAX_FRT];
 extern struct DirectAdrTable DAT[MAX_DAT];
 extern struct HDRMTable HDRMT[MAX_HDRM];
+extern struct Memory M[MEMORY_SIZE]; // Loader için memory array
 
 extern int ST_count;
 extern int FRT_count;

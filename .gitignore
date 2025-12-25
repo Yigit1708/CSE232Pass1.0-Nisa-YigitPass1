@@ -1,14 +1,44 @@
-# build outputs
+# Build artifacts - executable files
 *.exe
+assembler
+loader
+linker_exec
+pass1
+pass2
+
+# Build artifacts - object files
+*.o
 *.obj
 
-# common build folders
+# Build artifacts - intermediate files
+*.s
+output.s
+
+# Build artifacts - table files (assembler/linker output)
+output.t
+exp.t
+*.t
+
+# Build artifacts - linker outputs
+exp.exe
+a.exe
+a.t
+
+# Build artifacts - output files
+output.o
+output.obj
+
+# Common build folders
 Debug/
 Release/
 x64/
+build/
+bin/
 
-# optional: linker outputs (if you generate them)
-exp.exe
-exp.t
-a.exe
-a.t
+# Old/duplicate project folders
+PASS1/
+
+# Keep source files (these should be committed)
+# *.asm - source files, should be committed
+# *.c - source files, should be committed
+# *.h - header files, should be committed
