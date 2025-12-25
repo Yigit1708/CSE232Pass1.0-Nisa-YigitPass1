@@ -2,14 +2,12 @@ PROG MAIN
 EXTREF AD5,XX,ZZ
 START
 LOOP: LDA XX
-CLL AD5
-ADD ZZ
-CLL AD5
-STA 70
-LDA ZZ
-SUB #1
-BLT EX
-JMP LOOP
-EX: HLT
-END
-
+      ADD ZZ
+      CLL AD5
+      STA 70
+      LDA ZZ
+      SUB #1
+      BLT EX
+      JMP LOOP
+EX:   HLT
+      END

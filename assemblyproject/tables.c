@@ -7,6 +7,7 @@ struct SymbolTable ST[MAX_ST];
 struct ForwardRefTable FRT[MAX_FRT];
 struct DirectAdrTable DAT[MAX_DAT];
 struct HDRMTable HDRMT[MAX_HDRM];
+struct Memory M[MEMORY_SIZE]; // Loader için memory array
 
 int ST_count = 0;
 int FRT_count = 0;
