@@ -1,7 +1,8 @@
 PROG SBR1
 ENTRY AD5
+EXTREF YY
 START
-AD5:  ADD #5
-      STA YY
-      RET
-      END
+AD5: ADD #5
+     STA YY
+     RET
+     END

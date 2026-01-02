@@ -5,34 +5,9 @@
 #include "loader.h"
 #include "tables.h"
 
-// Memory array (global) - tables.h'da extern olarak tanımlı
+// Memory array (global) - structures.h'da extern olarak tanımlı
 extern struct Memory M[MEMORY_SIZE];
 static int memory_count = 0; // Loader'a özel sayaç
-
-// Opcode hex string'den instruction size bul
-// Opcode tablosu (pass1.c'deki ile aynı)
-typedef struct {
-    char opcode[3];
-    int bytes;
-} OpcodeSize;
-
-static OpcodeSize opcodeSizes[] = {
-    {"A1", 3}, {"A2", 2}, {"A3", 3}, {"A4", 2},
-    {"E1", 3}, {"E2", 2}, {"F1", 3},
-    {"C1", 3}, {"B4", 3}, {"B1", 3}, {"B2", 3}, {"B3", 3},
-    {"D2", 1}, {"D1", 1}, {"C2", 1}, {"FE", 1}
-};
-
-static int opcodeSizesCount = sizeof(opcodeSizes) / sizeof(OpcodeSize);
-
-int getInstructionSizeFromOpcode(const char *opcode_hex) {
-    for (int i = 0; i < opcodeSizesCount; i++) {
-        if (strcmp(opcodeSizes[i].opcode, opcode_hex) == 0) {
-            return opcodeSizes[i].bytes;
-        }
-    }
-    return 1; // Default: 1 byte (BYTE directive veya bilinmeyen)
-}
 
 // Integer'ı 2 karakterlik string'e çevirir
 // Örnek: 132 -> high="01", low="32"
@@ -72,13 +47,17 @@ void addToMemory(int address, const char *byte_str) {
 void loadExeFile(const char *exe_file, int loadpoint) {
     FILE *fp = fopen(exe_file, "r");
     if (!fp) {
+        printf("HATA: %s dosyasi acilamadi!\n", exe_file);
         return;
     }
     
     char line[1024];
+    int line_num = 0;
+    
+    printf("\n=== .exe DOSYASI OKUNUYOR ===\n");
     
     while (fgets(line, sizeof(line), fp)) {
-        line[strcspn(line, "\r\n")] = 0;
+        line[strcspn(line, "\r\n")] = 0; // Newline karakterlerini temizle
         
         if (strlen(line) < 1) continue;
         
@@ -92,80 +71,128 @@ void loadExeFile(const char *exe_file, int loadpoint) {
         
         // Hex byte'ları oku
         while ((token = strtok(NULL, " \t")) != NULL) {
+            // Hex byte'ı parse et (örn: "E1", "10", "33")
             int byte_val = 0;
             if (sscanf(token, "%x", &byte_val) == 1) {
+                // Byte'ı hexadecimal string'e çevir (örn: E1, 0A, FF)
                 char byte_str[4];
                 snprintf(byte_str, sizeof(byte_str), "%02X", byte_val & 0xFF);
+                
+                // Memory array'e ekle
                 addToMemory(current_addr, byte_str);
+                
                 current_addr++;
             }
         }
     }
     
     fclose(fp);
+    printf("OK: .exe dosyasi yuklendi (loadpoint=%04X)\n", loadpoint);
 }
 
+// .t dosyasından DAT tablosunu oku
+void readDATFromFile(const char *t_file, int *dat_addresses, int *dat_count) {
+    FILE *fp = fopen(t_file, "r");
+    if (!fp) {
+        printf("HATA: %s dosyasi acilamadi!\n", t_file);
+        return;
+    }
+    
+    *dat_count = 0;
+    int in_dat_section = 0;
+    char line[256];
+    
+    printf("\n=== DAT TABLOSU OKUNUYOR ===\n");
+    
+    while (fgets(line, sizeof(line), fp)) {
+        line[strcspn(line, "\r\n")] = 0;
+        
+        // DAT section başlığını kontrol et
+        if (strstr(line, "=== DIRECT ADDRESS TABLE (DAT) ===") != NULL) {
+            in_dat_section = 1;
+            continue;
+        }
+        
+        // Başka bir section başlığı görürsek DAT section'ı bitir
+        if (strstr(line, "===") != NULL && in_dat_section) {
+            break;
+        }
+        
+        if (in_dat_section) {
+            // Boş satırları atla
+            if (strlen(line) == 0) continue;
+            
+            // Address'i oku
+            int addr = atoi(line);
+            if (addr >= 0) {
+                dat_addresses[*dat_count] = addr;
+                (*dat_count)++;
+                printf("DAT entry: %d\n", addr);
+            }
+        }
+    }
+    
+    fclose(fp);
+    printf("OK: DAT tablosu okundu (%d entry)\n", *dat_count);
+}
 
 // DAT'taki adresler için relocation uygula
-// Her DAT address'i için operand byte'larını oku, symbol absolute address'ini al, loadpoint ekle
 void applyRelocation(int loadpoint, int *dat_addresses, int dat_count) {
+    printf("\n=== RELOCATION UYGULANIYOR ===\n");
+    
     for (int i = 0; i < dat_count; i++) {
-        // DAT'taki address .exe dosyasındaki offset (LC)
-        int exe_offset = dat_addresses[i];
-        // Memory'deki absolute address
-        int abs_addr = loadpoint + exe_offset;
+        int reloc_addr = dat_addresses[i];
+        int abs_addr = loadpoint + reloc_addr;
         
-        // Operand byte'larını oku (16-bit address)
+        // Bu adresteki 2 byte'ı oku (16-bit address)
         int byte1_addr = abs_addr;
         int byte2_addr = abs_addr + 1;
         
+        // Memory'de bu adresler var mı kontrol et
         int byte1_val = -1, byte2_val = -1;
         
-        // Memory'den operand byte'larını oku
         for (int j = 0; j < memory_count; j++) {
             if (M[j].address == byte1_addr) {
+                // Hexadecimal string'i parse et
                 sscanf(M[j].symbol, "%x", &byte1_val);
             }
             if (M[j].address == byte2_addr) {
+                // Hexadecimal string'i parse et
                 sscanf(M[j].symbol, "%x", &byte2_val);
             }
         }
         
         if (byte1_val >= 0 && byte2_val >= 0) {
-            // Operand'taki 16-bit address'i oku (symbol absolute address BEFORE loading)
-            // Big-endian format: high_byte low_byte
-            int symbol_abs_addr = (byte1_val << 8) | byte2_val;
+            // 16-bit address'i oluştur (big-endian)
+            int old_addr = (byte1_val << 8) | byte2_val;
             
-            // final_address = loadpoint + symbol_absolute_address
-            int final_addr = loadpoint + symbol_abs_addr;
+            // Loadpoint ekle (relocation)
+            int new_addr = old_addr + loadpoint;
             
-            // Operand byte'larını güncelle (big-endian format)
-            // final_addr'i 16-bit big-endian olarak yaz (DECIMAL format)
+            // Yeni adresi 2 byte olarak hexadecimal string'e çevir
             char high_str[4], low_str[4];
-            int high_byte = (final_addr >> 8) & 0xFF;
-            int low_byte = final_addr & 0xFF;
-            snprintf(high_str, sizeof(high_str), "%02d", high_byte);
-            snprintf(low_str, sizeof(low_str), "%02d", low_byte);
+            int high_byte = (new_addr >> 8) & 0xFF;
+            int low_byte = new_addr & 0xFF;
+            snprintf(high_str, sizeof(high_str), "%02X", high_byte);
+            snprintf(low_str, sizeof(low_str), "%02X", low_byte);
             
+            // Memory'yi güncelle
             addToMemory(byte1_addr, high_str);
             addToMemory(byte2_addr, low_str);
+            
+            printf("Relocation: LC=%04X -> %04X -> %04X (loadpoint=%04X)\n", 
+                   reloc_addr, old_addr, new_addr, loadpoint);
         }
     }
 }
 
-// Memory array'de belirli bir address'teki byte'ı bul
-const char* getByteAtAddress(int addr) {
-    for (int i = 0; i < memory_count; i++) {
-        if (M[i].address == addr) {
-            return M[i].symbol;
-        }
-    }
-    return NULL;
-}
-
-// Memory array'i ekrana yazdır (Instruction-based format)
+// Memory array'i ekrana yazdır (Hexadecimal format)
 void printMemoryArray(int start_addr, int end_addr) {
-    // Memory array'i address'e göre sırala
+    printf("\n=== MEMORY ARRAY (M[]) ===\n");
+    printf("address | M[]\n");
+    printf("--------|-----\n");
+    
+    // Memory array'i address'e göre sırala (basit bubble sort)
     for (int i = 0; i < memory_count - 1; i++) {
         for (int j = 0; j < memory_count - i - 1; j++) {
             if (M[j].address > M[j + 1].address) {
@@ -176,134 +203,59 @@ void printMemoryArray(int start_addr, int end_addr) {
         }
     }
     
-    if (memory_count == 0) return;
-    
-    // Minimum ve maksimum address'leri bul
-    int min_addr = M[0].address;
-    int max_addr = M[memory_count - 1].address;
-    
-    // Instruction-based yazdır
-    int current_addr = min_addr;
-    int processed[1000] = {0}; // Processed byte'ları işaretle (basit yaklaşım)
-    
-    while (current_addr <= max_addr) {
-        // Bu address'te byte var mı kontrol et
-        const char *opcode_hex = getByteAtAddress(current_addr);
-        if (!opcode_hex) {
-            current_addr++;
-            continue;
+    // Yazdır (Hexadecimal format)
+    for (int i = 0; i < memory_count; i++) {
+        if (start_addr == -1 && end_addr == -1) {
+            // Tüm memory'yi yazdır
+            printf("%7X | %s\n", M[i].address, M[i].symbol);
+        } else if (M[i].address >= start_addr && M[i].address <= end_addr) {
+            printf("%7X | %s\n", M[i].address, M[i].symbol);
         }
-        
-        // Bu address zaten işlendi mi? (bir instruction'ın operand byte'ı mı?)
-        int addr_index = current_addr - min_addr;
-        if (addr_index >= 0 && addr_index < 1000 && processed[addr_index]) {
-            current_addr++;
-            continue;
-        }
-        
-        // Instruction size'ı bul
-        char opcode[4] = {0};
-        strncpy(opcode, opcode_hex, 3);
-        opcode[3] = '\0';
-        int inst_size = getInstructionSizeFromOpcode(opcode);
-        
-        // Address kontrolü
-        if (start_addr != -1 && end_addr != -1) {
-            if (current_addr < start_addr || current_addr > end_addr) {
-                current_addr += inst_size;
-                continue;
-            }
-        }
-        
-        // Instruction'ı yazdır: ADDRESS OPCODE OPERAND_HIGH OPERAND_LOW
-        printf("%d", current_addr);
-        printf(" %s", opcode);
-        
-        // Operand byte'larını yazdır
-        if (inst_size >= 2) {
-            const char *byte2 = getByteAtAddress(current_addr + 1);
-            if (byte2) {
-                printf(" %s", byte2);
-                int idx2 = (current_addr + 1) - min_addr;
-                if (idx2 >= 0 && idx2 < 1000) processed[idx2] = 1;
-            }
-        }
-        if (inst_size >= 3) {
-            const char *byte3 = getByteAtAddress(current_addr + 2);
-            if (byte3) {
-                printf(" %s", byte3);
-                int idx3 = (current_addr + 2) - min_addr;
-                if (idx3 >= 0 && idx3 < 1000) processed[idx3] = 1;
-            }
-        }
-        printf("\n");
-        
-        // Bu address'i işaretle
-        if (addr_index >= 0 && addr_index < 1000) processed[addr_index] = 1;
-        
-        current_addr += inst_size;
     }
 }
 
 // Loader ana fonksiyonu
 void runLoader(const char *exe_file, const char *t_file) {
+    // Memory array'i sıfırla
     memory_count = 0;
     memset(M, 0, sizeof(M));
     
+    // Loadpoint'i terminalden al
     int loadpoint;
+    printf("\n=== LOADER ===\n");
     printf("Loadpoint giriniz (decimal veya hex): ");
     
     char input[20];
     if (scanf("%s", input) != 1) {
+        printf("HATA: Gecersiz loadpoint!\n");
         return;
     }
     
+    // Hexadecimal veya decimal olarak parse et
     if (input[0] == '0' && (input[1] == 'x' || input[1] == 'X')) {
         sscanf(input, "%x", &loadpoint);
     } else {
         loadpoint = atoi(input);
     }
     
+    printf("Loadpoint: %04X (hex) / %d (decimal)\n", loadpoint, loadpoint);
+    
+    // .exe dosyasını oku ve memory array'e yükle
     loadExeFile(exe_file, loadpoint);
     
-    // DAT'ı oku
+    // .t dosyasından DAT tablosunu oku
     int dat_addresses[MAX_DAT];
     int dat_count = 0;
-    
-    FILE *fp = fopen(t_file, "r");
-    if (fp) {
-        int in_dat_section = 0;
-        char line[256];
-        
-        while (fgets(line, sizeof(line), fp)) {
-            line[strcspn(line, "\r\n")] = 0;
-            
-            if (strstr(line, "=== DIRECT ADDRESS TABLE (DAT) ===") != NULL) {
-                in_dat_section = 1;
-                continue;
-            }
-            
-            if (strstr(line, "===") != NULL && in_dat_section) {
-                break;
-            }
-            
-            if (in_dat_section) {
-                if (strlen(line) == 0) continue;
-                int addr = atoi(line);
-                if (addr >= 0) {
-                    dat_addresses[dat_count] = addr;
-                    dat_count++;
-                }
-            }
-        }
-        fclose(fp);
-    }
+    readDATFromFile(t_file, dat_addresses, &dat_count);
     
     // DAT'taki adresler için relocation uygula
     if (dat_count > 0) {
         applyRelocation(loadpoint, dat_addresses, dat_count);
     }
     
-    printMemoryArray(-1, -1);
+    // Memory array'i ekrana yazdır
+    printMemoryArray(-1, -1); // Tüm memory'yi yazdır
+    
+    printf("\n=== LOADER TAMAMLANDI ===\n");
 }
 
