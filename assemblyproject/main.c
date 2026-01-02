@@ -1,20 +1,50 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "parser.h"
 #include "tables.h"
 #include "pass1.h"
 #include "pass2.h"
-int main() {
-    FILE *fp = fopen("test_main.asm", "r");
+
+// Dosya adından uzantıyı kaldır ve yeni uzantı ekle
+void getOutputFilename(const char *input_file, const char *extension, char *output_file, size_t size) {
+    strncpy(output_file, input_file, size - 1);
+    output_file[size - 1] = '\0';
+    
+    // .asm uzantısını bul ve kaldır
+    char *dot = strrchr(output_file, '.');
+    if (dot != NULL && strcmp(dot, ".asm") == 0) {
+        *dot = '\0';
+    }
+    
+    // Yeni uzantıyı ekle
+    strncat(output_file, extension, size - strlen(output_file) - 1);
+}
+
+int main(int argc, char **argv) {
+    if (argc < 2) {
+        printf("Kullanim: %s <asm_dosyasi>\n", argv[0]);
+        printf("Ornek: %s test_main.asm\n", argv[0]);
+        return 1;
+    }
+    
+    const char *input_file = argv[1];
+    FILE *fp = fopen(input_file, "r");
     if (!fp) {
-        printf("input.asm dosyasi acilamadi\n");
+        printf("HATA: %s dosyasi acilamadi\n", input_file);
         return 1;
     }
 
+    // Çıktı dosya adlarını oluştur
+    char s_file[256], o_file[256], t_file[256];
+    getOutputFilename(input_file, ".s", s_file, sizeof(s_file));
+    getOutputFilename(input_file, ".o", o_file, sizeof(o_file));
+    getOutputFilename(input_file, ".t", t_file, sizeof(t_file));
+
     // .s dosyasını aç (partial code için)
-    FILE *sfp = fopen("output.s", "w");
+    FILE *sfp = fopen(s_file, "w");
     if (!sfp) {
-        printf("output.s dosyasi olusturulamadi\n");
+        printf("HATA: %s dosyasi olusturulamadi\n", s_file);
         fclose(fp);
         return 1;
     }
@@ -27,7 +57,6 @@ int main() {
     int LC = 0;
     int isStartFound = 0;
 
-    printf("=== PASS 1 - PARSING VE TABLO OLUŞTURMA ===\n\n");
 
     while (fgets(line, sizeof(line), fp)) {
         // Boş satırları ve yorumları atla
@@ -94,38 +123,10 @@ int main() {
     printAllTables();
 
     // DAT ve HDRM tablolarını .t dosyasına yaz (PDF'de istenen format)
-    FILE *tfp = fopen("output.t", "w");
-    if (tfp) {
-        // 1. SYMBOL TABLE (Eksikti, ekliyoruz)
-        fprintf(tfp, "=== SYMBOL TABLE ===\n");
-        for (int i = 0; i < ST_count; i++) {
-            fprintf(tfp, "Symbol: %-10s Address: %d\n", ST[i].symbol, ST[i].address);
-        }
+    // Not: Pass 2'de de .t dosyası yazılıyor, burada Pass 1 sonu için yazıyoruz
+    // Pass 2'de güncel tablolar yazılacak
 
-        // 2. FORWARD REFERENCE TABLE (Eksikti, ekliyoruz)
-        fprintf(tfp, "\n=== FORWARD REFERENCE TABLE ===\n");
-        for (int i = 0; i < FRT_count; i++) {
-            fprintf(tfp, "Address: %d Symbol: %s\n", FRT[i].address, FRT[i].symbol);
-        }
-        // 3. DIRECT ADDRESS TABLE (DAT) ve HDRM TABLE
-        fprintf(tfp, "=== DIRECT ADDRESS TABLE (DAT) ===\n");
-        for (int i = 0; i < DAT_count; i++) {
-            fprintf(tfp, "%d\n", DAT[i].address);
-        }
-        // 4. HDRM TABLE
-        fprintf(tfp, "\n=== HDRM TABLE ===\n");
-        for (int i = 0; i < HDRM_count; i++) {
-            fprintf(tfp, "%c %s %d\n", HDRMT[i].code, HDRMT[i].symbol, HDRMT[i].address);
-        }
-        fclose(tfp);
-        printf("\nTablolar 'output.t' dosyasina yazildi.\n");
-    } else {
-        printf("\nUYARI: output.t dosyasi olusturulamadi!\n");
-    }
-
-    printf("\n=== PASS 1 TAMAMLANDI ===\n");
-    printf("Partial code 'output.s' dosyasina yazildi.\n");
-
-    runPass2();
+    // Pass 2'yi çalıştır (dosya adlarını parametre olarak geç)
+    runPass2(s_file, o_file, t_file);
     return 0;
 }
