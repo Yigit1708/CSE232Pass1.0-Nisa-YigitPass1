@@ -314,27 +314,11 @@ static void write_exe_listing(const char *exe_path, const unsigned char *linked,
     fclose(f);
 }
 
-static void write_dat_t(const char *t_path, IntVec *dat_out, Estab *estab, Module *mods, int modn) {
+static void write_dat_t(const char *t_path, IntVec *dat_out) {
     iv_sort(dat_out);
 
     FILE *f = fopen(t_path, "w");
     if (!f) { perror(t_path); die("failed to write .t"); }
-
-    // Write ESTAB first
-    fprintf(f, "=== ESTAB ===\n");
-    for (int i=0;i<estab->n;i++) {
-        fprintf(f, "%s %d\n", estab->a[i].name, estab->a[i].abs_addr);
-    }
-
-    // Write M records (symbol + address pairs for relocation)
-    fprintf(f, "=== M RECORDS ===\n");
-    for (int i=0;i<modn;i++) {
-        for (int k=0;k<mods[i].modlist.n;k++) {
-            const char *sym = mods[i].modlist.a[k].sym;
-            int field_abs = mods[i].base + mods[i].modlist.a[k].local_addr;
-            fprintf(f, "%s %d\n", sym, field_abs);
-        }
-    }
 
     fprintf(f, "=== DIRECT ADDRESS TABLE (DAT) ===\n");
     for (int i=0;i<dat_out->n;i++) fprintf(f, "%d\n", dat_out->a[i]);
@@ -478,7 +462,7 @@ int main(int argc, char **argv) {
     snprintf(t_path, sizeof(t_path), "%s.t", out_prefix);
 
     write_exe_listing(exe_path, linked, total_len);
-    write_dat_t(t_path, &dat_out, &estab, mods, modn);
+    write_dat_t(t_path, &dat_out);
 
     // 9) Cleanup
     free(linked);
@@ -496,5 +480,6 @@ int main(int argc, char **argv) {
     }
     free(mods);
 
+    printf("OK: wrote %s and %s\n", exe_path, t_path);
     return 0;
 }

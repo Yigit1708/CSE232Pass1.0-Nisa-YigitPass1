@@ -3,7 +3,7 @@
 #include "parser.h"
 #include "tables.h"
 #include "pass1.h"
-#include "pass2.h"
+
 int main() {
     FILE *fp = fopen("test_main.asm", "r");
     if (!fp) {
@@ -96,23 +96,10 @@ int main() {
     // DAT ve HDRM tablolarını .t dosyasına yaz (PDF'de istenen format)
     FILE *tfp = fopen("output.t", "w");
     if (tfp) {
-        // 1. SYMBOL TABLE (Eksikti, ekliyoruz)
-        fprintf(tfp, "=== SYMBOL TABLE ===\n");
-        for (int i = 0; i < ST_count; i++) {
-            fprintf(tfp, "Symbol: %-10s Address: %d\n", ST[i].symbol, ST[i].address);
-        }
-
-        // 2. FORWARD REFERENCE TABLE (Eksikti, ekliyoruz)
-        fprintf(tfp, "\n=== FORWARD REFERENCE TABLE ===\n");
-        for (int i = 0; i < FRT_count; i++) {
-            fprintf(tfp, "Address: %d Symbol: %s\n", FRT[i].address, FRT[i].symbol);
-        }
-        // 3. DIRECT ADDRESS TABLE (DAT) ve HDRM TABLE
         fprintf(tfp, "=== DIRECT ADDRESS TABLE (DAT) ===\n");
         for (int i = 0; i < DAT_count; i++) {
             fprintf(tfp, "%d\n", DAT[i].address);
         }
-        // 4. HDRM TABLE
         fprintf(tfp, "\n=== HDRM TABLE ===\n");
         for (int i = 0; i < HDRM_count; i++) {
             fprintf(tfp, "%c %s %d\n", HDRMT[i].code, HDRMT[i].symbol, HDRMT[i].address);
@@ -126,6 +113,5 @@ int main() {
     printf("\n=== PASS 1 TAMAMLANDI ===\n");
     printf("Partial code 'output.s' dosyasina yazildi.\n");
 
-    runPass2();
     return 0;
 }
