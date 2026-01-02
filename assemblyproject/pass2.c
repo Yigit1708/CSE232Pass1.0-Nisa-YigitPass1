@@ -14,17 +14,16 @@ char* findInHDRM_M_Record(int address) {
     return NULL;
 }
 
-void runPass2() {
-    // Girdi (output.s) ve çıktı (output.obj) dosyalarını aç
-    FILE *inFile = fopen("output.s", "r");
-    FILE *outFile = fopen("output.o", "w");
+void runPass2(const char *s_file, const char *o_file, const char *t_file) {
+    // Girdi (.s) ve çıktı (.o) dosyalarını aç
+    FILE *inFile = fopen(s_file, "r");
+    FILE *outFile = fopen(o_file, "w");
     
     if (!inFile || !outFile) {
         printf("HATA: Pass 2 dosyalari acilamadi!\n");
         return;
     }
 
-    printf("\n=== PASS 2 BASLIYOR ===\n");
 
     char line[128];
     
@@ -81,7 +80,6 @@ void runPass2() {
                     int symbolAddr = findInSymbolTable(symbolName);
                     if (symbolAddr != -1) {
                         fprintf(outFile, "%02d %02d\n", (symbolAddr >> 8) & 0xFF, symbolAddr & 0xFF);
-                        printf("FIX: LC=%d -> %s adresi cozuldu.\n", lc, symbolName);
                     } else {
                         fprintf(outFile, "?? ??\n"); // Hata: Sembol tabloda yok
                     }
@@ -100,6 +98,33 @@ void runPass2() {
 
     fclose(inFile);
     fclose(outFile);
-    printf("=== PASS 2 TAMAMLANDI ===\n");
-    printf("Sonuc: 'output.obj' dosyasina yazildi.\n");
+    
+    // PDF'de istenen: Pass 2 sonunda DAT ve HDRM tablolarını .t dosyasına yaz
+    FILE *tfp = fopen(t_file, "w");
+    if (tfp) {
+        // 1. SYMBOL TABLE
+        fprintf(tfp, "=== SYMBOL TABLE ===\n");
+        for (int i = 0; i < ST_count; i++) {
+            fprintf(tfp, "Symbol: %-10s Address: %d\n", ST[i].symbol, ST[i].address);
+        }
+        
+        // 2. FORWARD REFERENCE TABLE
+        fprintf(tfp, "\n=== FORWARD REFERENCE TABLE ===\n");
+        for (int i = 0; i < FRT_count; i++) {
+            fprintf(tfp, "Address: %d Symbol: %s\n", FRT[i].address, FRT[i].symbol);
+        }
+        
+        // 3. DIRECT ADDRESS TABLE (DAT)
+        fprintf(tfp, "=== DIRECT ADDRESS TABLE (DAT) ===\n");
+        for (int i = 0; i < DAT_count; i++) {
+            fprintf(tfp, "%d\n", DAT[i].address);
+        }
+        
+        // 4. HDRM TABLE
+        fprintf(tfp, "\n=== HDRM TABLE ===\n");
+        for (int i = 0; i < HDRM_count; i++) {
+            fprintf(tfp, "%c %s %d\n", HDRMT[i].code, HDRMT[i].symbol, HDRMT[i].address);
+        }
+        fclose(tfp);
+    }
 }

@@ -1,4 +1,4 @@
-# Build artifacts - executable files
+# Build artifacts - executables
 *.exe
 assembler
 loader
@@ -12,33 +12,11 @@ pass2
 
 # Build artifacts - intermediate files
 *.s
-output.s
 
 # Build artifacts - table files (assembler/linker output)
-output.t
-exp.t
 *.t
 
-# Build artifacts - linker outputs
-exp.exe
-a.exe
-a.t
-
-# Build artifacts - output files
-output.o
-output.obj
-
-# Common build folders
-Debug/
-Release/
-x64/
-build/
-bin/
-
-# Old/duplicate project folders
-PASS1/
-
-# Keep source files (these should be committed)
+# Keep source files
 # *.asm - source files, should be committed
 # *.c - source files, should be committed
 # *.h - header files, should be committed
